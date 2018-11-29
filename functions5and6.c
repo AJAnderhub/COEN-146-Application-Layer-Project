@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <dirent.h>
-
+#include <unistd.h>
 
 /*** Upload file ***
 
@@ -27,35 +27,75 @@
 void SendRequest5(int sockfd){
 	struct Packet req5;
 	req5.request_type = 5;
-			
+
+
+	// Display all locally stored files
+	printf("Files stored locally: \n---------------------\n");
+
+	struct dirent *de;  // Pointer for directory entry
+	DIR *dr = opendir("./Files");
+
+	if (dr == NULL){
+		printf("***No files found***\n---------------------\n");
+		return;
+	}
+
+	char tempFileName[MAX_FILENAME_LENGTH];
+	while ((de = readdir(dr)) != NULL){
+		for (int i = 0; i < MAX_FILENAME_LENGTH; i++){
+			tempFileName[i] = de->d_name[i];
+		}
+
+
+		if((strcmp(".",tempFileName) != 0) && (strcmp("..",tempFileName) != 0) && (strcmp(".DS_Store",tempFileName) != 0)){
+			printf("%s\n", tempFileName);
+		}
+	}
+	printf("---------------------\n");
+
+
 
     printf("Enter file to save: \n");
 
-	char source[32];
-	fgets(source,32,stdin);
-	if(FILE *src = fopen(source, "rb")){
-		
+	char source[MAX_FILENAME_LENGTH];
+	//fgets(source, MAX_FILENAME_LENGTH, stdin);
+	scanf(" %s", source);
+	printf("Attemping to send file: %s \n", source);
+
+
+	FILE *src;
+	char fileNamePlusPath[MAX_FILENAME_LENGTH+8];
+	strcpy(fileNamePlusPath, "./Files/");
+	strcat(fileNamePlusPath, source);
+
+	if((src = fopen(fileNamePlusPath, "rb")) == NULL){
+		printf("Error: filename not found\n");
+		return;
 	}
-	FILE *src = fopen(source, "rb");
-	req5.fileName = source;
-	
+
+	strcpy(req5.fileName, source);
+
 	//send contents of file
-	while (0< (n = fread(req5.data, sizeof(char), 128, src))){
-		req5.len = n;
+	ssize_t bytes_read;
+	while (0 < (bytes_read = fread(req5.data, sizeof(char), DATA_SIZE, src))){
+		req5.len = bytes_read;
 		req5.error = 0;
-		write(sockfd, req5, n);
+		write(sockfd, &req5, sizeof(struct Packet));
 	}
+
+
 	req5.len = 0;
-	write(sockfd, req5, sizeof(req5));
+	write(sockfd, &req5, sizeof(req5));
 
 	//Wait for response
+	printf("Waiting for response...\n");
 	struct Packet rcv;
 	recvfrom (sockfd, &rcv, sizeof(struct Packet), 0, NULL, NULL);
 	if(rcv.error == 1){
 		printf("Error: File name already exists.\n");
 	}
 	else{
-		printf("Save Successful\n")
+		printf("Save Successful\n");
 	}
 }
 
@@ -75,8 +115,9 @@ void SendRequest5(int sockfd){
 
 */
 void SendRequest6(int connectSockfd, struct Packet firstPacket){
-    struct Packet req6;
-	struct Packet rcv;
+
+	struct Packet req6;	// Packet that will be sent as acknowledgement
+	struct Packet rcv;	// Packet that will store incoming data
 
 	req6.request_type = 6;
 	char fileNames[MAX_FILENAME_LENGTH];
@@ -85,55 +126,52 @@ void SendRequest6(int connectSockfd, struct Packet firstPacket){
   	DIR *dr = opendir("./Files");
 
 	//check name against all names in directory
+	req6.error = 0;
 	while ((de = readdir(dr)) != NULL){
 		memset(fileNames, '\0', sizeof(fileNames));
 		for (int i = 0; i < MAX_FILENAME_LENGTH; i++){
 			fileNames[i] = de->d_name[i];
-		
+		}
+
 		// if name already exists receives rest of packets then sends error
 		if((strcmp(firstPacket.fileName, fileNames)) == 0){
-			req6.error == 1;
-			while((ssize_t bytes_read = recv(connectionSocket, &rcv, sizeof(struct Packet), 0))>0){
-				if(rcv.len == 0){
-					write(connectSockfd, req6, sizeof(req6));
+			req6.error = 1;
+			ssize_t bytes_read;
+			while((bytes_read = recv(connectSockfd, &rcv, sizeof(struct Packet), 0)) > 0){
+				if(rcv.len < DATA_SIZE){
+					write(connectSockfd, &req6, sizeof(struct Packet));
 					return;
 				}
-			}		
+			}
 		}
-		req6.error = 0;
 	}
 
-
-	int isFirst = 1;
-	char dest[32];
-	FILE *destFile;
-	int len;
-
 	//no duplicate so save packets while we are still receiving data
-	while((ssize_t bytes_read = recv(connectionSocket, &rcv, sizeof(struct Packet), 0))>0){
+	char dest[MAX_FILENAME_LENGTH+8];
+	FILE *destFile;
 
-		//last packet sent will always have len of 0 as implemented in SendRequest5		
+	// Create file name
+	strcpy(dest, "./Files/");
+	strcat(dest, firstPacket.fileName);
+
+	// Open specified file
+	destFile = fopen(dest, "wb");
+
+	// Write first packet received to file
+	fwrite(firstPacket.data, firstPacket.len, sizeof(char), destFile);
+
+	// Add to the file until the terminating packet is received
+	ssize_t bytes_read;
+	while((bytes_read = recv(connectSockfd, &rcv, sizeof(struct Packet), 0))>0){
+
+		//last packet sent will always have len of 0 as implemented in SendRequest5
 		if(rcv.len == 0){
-			req6.data = '\0';
-			write(connectSockfd, req6, sizeof(req6));
+			req6.data[0] = '\0';
+			write(connectSockfd, &req6, sizeof(req6));
+			fclose(destFile);
 			return;
 		}
-		
-		//checks if file has been created yet so not to overwrite the file
-		if(isFirst == 1){
-			strcpy(dest, rcv.fileName);		
-			destFile = fopen(dest, "wb");
-			fwrite(rcv.data, rcv.len, sizeof(char), destFile);
-			isFirst = 0;			
-		}	
-		else{
-			destFile = fopen(dest, "a");
-			fwrite(rcv.data, rcv.len, sizeof(char), destFile);
-			fclose(destFile);
-		}
 
-
-	}		
-	
-		
+		fwrite(rcv.data, rcv.len, sizeof(char), destFile);
+	}
 }
