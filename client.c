@@ -82,7 +82,7 @@ int main(int argc,char *argv[]){
                 SendRequest5(sock);
 				break;
 
-            case 4: // Ends Porgram
+            case 4: // Ends Program
                 close(sock);
                 return 0;
 

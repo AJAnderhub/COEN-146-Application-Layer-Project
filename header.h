@@ -1,5 +1,6 @@
 #define DATA_SIZE 128
 #define MAX_FILENAME_LENGTH 64
+#define h_addr h_addr_list[0]
 
 struct Packet{
     int request_type;
