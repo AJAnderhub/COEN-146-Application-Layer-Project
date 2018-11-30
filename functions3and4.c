@@ -4,11 +4,12 @@
 * Description: TODO
 */
 #include "header.h"
-#define SORT_PORT 1719
-#define LINESIZE 80
-#define NUMWORDS 1
-
-
+#include <stdio.h>
+#include "string.h"
+#include <stdio.h>
+#include <sys/socket.h>
+#include <dirent.h>
+#include <unistd.h>
 
 /*** Download file ***
 -Prompt user to input file name they want to download
@@ -21,37 +22,80 @@
         -Keep writing incoming packets until len != DATA_SIZE
 */
 void SendRequest3(int sockfd){
-    char filename[LINESIZE];
-	printf("What file would you like to download?");
-	scanf("%s", &filename);
-	
-	struct sockaddr_in server;
-    struct hostent *host_info;
-    int count, port_number;
-    char inlin[LINESIZE]; /*buffer to copy from user to server*/
-    char outline[LINESIZE];/*buffer to copy from server to user*/
-	count = 1;
-        outline[count]='\0';
-        if(write(sockfd, filename,count)<0){
-			printf("writing to server failed\n");
-		}
-		printf("Client: sending filename to server: %s", filename);
-    count=read(sockfd,inlin,LINESIZE);
-    if (inlin[0] == '0') {
-		printf("FILE NOT FOUND");
+	struct Packet req3;
+	req3.request_type = 3;
+/*
+	// Display all locally stored files
+	printf("Files stored locally: \n---------------------\n");
+
+	struct dirent *de;  // Pointer for directory entry
+	DIR *dr = opendir("./Files");
+
+	if (dr == NULL){
+		printf("***No files found***\n---------------------\n");
 		return;
 	}
+
+	char tempFileName[MAX_FILENAME_LENGTH];
+	while ((de = readdir(dr)) != NULL){
+		for (int i = 0; i < MAX_FILENAME_LENGTH; i++){
+			tempFileName[i] = de->d_name[i];
+		}
+
+
+		if((strcmp(".",tempFileName) != 0) && (strcmp("..",tempFileName) != 0) && (strcmp(".DS_Store",tempFileName) != 0)){
+			printf("%s\n", tempFileName);
+		}
+	}
+	printf("---------------------\n");
+*/
+	printf("Enter file to save: \n");
+	char source[MAX_FILENAME_LENGTH];
+	scanf(" %s", source);
+	printf("Attemping to retrieve file: %s \n", source);
+/*
+	FILE *src;
+	char fileNamePlusPath[MAX_FILENAME_LENGTH+8];
+	strcpy(fileNamePlusPath, "./Files/");
+	strcat(fileNamePlusPath, source);
+
+	if((src = fopen(fileNamePlusPath, "rb")) == NULL){
+		printf("Error: filename not found\n");
+		return;
+	}
+*/
+	strcpy(req3.fileName, source);
+/*
+	//send contents of file
+	ssize_t bytes_read;
+	while (0 < (bytes_read = fread(req3.data, sizeof(char), DATA_SIZE, src))){
+		req3.len = bytes_read;
+		req3.error = 0;
+		write(sockfd, &req3, sizeof(struct Packet));
+	}
+*/
+	write(sockfd, &req3, sizeof(req3));
+
+	//Wait for response
+	printf("Waiting for response...\n");
+	struct Packet rcv;
+	recvfrom (sockfd, &rcv, sizeof(struct Packet), 0, NULL, NULL);
+	if(rcv.error == 1){
+		printf("Error: File name does not exist.\n");
+	}
 	else {
+		printf("Downloading file");
 		FILE *fp;
 		fp = fopen(filename, "w");
-		fwrite(inlin, count, 1, fp);
-    }
-    while ((count=read(sockfd,inlin,LINESIZE)) >0) {
-		fwrite(inlin, count, 1, fp);
-        printf("\n");
-    }
-	fclose(fp);
-    return;
+		while (recv.len != DATA_SIZE) {
+			fwrite(rcv.data, recv.len, 1, fp);
+        		printf("\n");
+			recvfrom (sockfd, &rcv, sizeof(struct Packet), 0, NULL, NULL);
+    		}
+		fwrite(rcv.data, recv.len, 1, fp); // write the last piece of data to the file
+		fclose(fp);	
+    	}
+	return;
 }
 
 
@@ -64,34 +108,60 @@ void SendRequest3(int sockfd){
         -Nothing in data field, error = 1
 */
 void SendRequest4(int connectSockfd, struct Packet firstPacket){
-	char recv_data[LINESIZE];	
-	ssize_t bytes_read;
+	struct Packet req4;	// Packet that will be sent as acknowledgement
+	struct Packet rcv;	// Packet that will store incoming data
+
+	req4.request_type = 4;
+	char fileNames[MAX_FILENAME_LENGTH];
+/*
+	struct dirent *de;  // Pointer for directory entry
+  	DIR *dr = opendir("./Files");
+
+	//check name against all names in directory
+	req4.error = 0;
+	while ((de = readdir(dr)) != NULL){
+		memset(fileNames, '\0', sizeof(fileNames));
+		for (int i = 0; i < MAX_FILENAME_LENGTH; i++){
+			fileNames[i] = de->d_name[i];
+		}
+
+		// if name already exists receives rest of packets then sends error
+		if((strcmp(firstPacket.fileName, fileNames)) == 0){
+			req4.error = 1;
+			ssize_t bytes_read;
+			while((bytes_read = recv(connectSockfd, &rcv, sizeof(struct Packet), 0)) > 0){
+				if(rcv.len < DATA_SIZE){
+					write(connectSockfd, &req4, sizeof(struct Packet));
+					return;
+				}
+			}
+		}
+	}
+*/
+	//no duplicate so save packets while we are still receiving data
+	char dest[MAX_FILENAME_LENGTH+8];
+	FILE *destFile;
+/*
+	// Create file name
+	strcpy(dest, "./Files/");*/
 	
-		bytes_read = recv(sd,&recv_data[0],1024,0); // read data from the socket
-        recv_data[bytes_read] ='\0'; // checks for end of data
-			if (recv_data[0] == '0') {
-				printf("error on the socket");
-			}
-			else {
-				printf("\n(%s , %d) said: ", inet_ntoa(client.sin_addr), ntohs(client.sin_port)); // prints the data
-        		printf("%s\n", recv_data); // prints the data
-				FILE *fp;
-				fp = fopen(recv_data, "r"); // filename
-				if (fp == NULL) {
-        			filename[0] = '0';
-					count = 1;
-					printf("FILE NOT FOUND");
-					if(write(sockfd, recv_data,count)<0) { // sends back the error - no file
-						printf("sending to client failed\n");
-					}
-				}
-				else {
-					while (!feof(fp)) {
-						fread(recv_data, LINESIZE, 1, fp);
-						write(sockfd, recv_data, 1);
-					}
-				}
-			}
-        	fflush(stdout); // clear out junk characters on the stdio
+	strcat(dest, firstPacket.fileName);
+
+	// Open specified file
+	destFile = fopen(dest, "rb");
+
+	// Write first packet received to file
+	if (destFile == NULL) {
+		req4.data = 0;
+		req4.len = 0;
+		printf("FILE NOT FOUND");
+		write(connectSockfd, &req4,sizeof(req4));// sends back the error - no file found
+	}
+	else {
+		while (!feof(destFile)) {
+			fread(req4.data, LINESIZE, 1, destFile);
+			write(connectSockfd, recv_data, 1);
+		}
+	}
 }
 
