@@ -23,7 +23,6 @@
 -Display success upon acknowledgement or error if filename is already in server
 
 */
-
 void SendRequest5(int sockfd){
 	struct Packet req5;
 	req5.request_type = 5;
@@ -55,7 +54,7 @@ void SendRequest5(int sockfd){
 
 
 
-    printf("Enter file to save: \n");
+    printf("Enter file to upload to the server: ");
 
 	char source[MAX_FILENAME_LENGTH];
 	//fgets(source, MAX_FILENAME_LENGTH, stdin);
@@ -77,9 +76,9 @@ void SendRequest5(int sockfd){
 
 	//send contents of file
 	ssize_t bytes_read;
+	req5.error = 0;
 	while (0 < (bytes_read = fread(req5.data, sizeof(char), DATA_SIZE, src))){
 		req5.len = bytes_read;
-		req5.error = 0;
 		write(sockfd, &req5, sizeof(struct Packet));
 	}
 
@@ -90,7 +89,7 @@ void SendRequest5(int sockfd){
 	//Wait for response
 	printf("Waiting for response...\n");
 	struct Packet rcv;
-	recvfrom (sockfd, &rcv, sizeof(struct Packet), 0, NULL, NULL);
+	recv(sockfd, &rcv, sizeof(struct Packet), 0);
 	if(rcv.error == 1){
 		printf("Error: File name already exists.\n");
 	}

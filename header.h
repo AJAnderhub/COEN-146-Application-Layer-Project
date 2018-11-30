@@ -1,5 +1,5 @@
 #define DATA_SIZE 128
-#define MAX_FILENAME_LENGTH 32
+#define MAX_FILENAME_LENGTH 64
 
 struct Packet{
     int request_type;
@@ -17,11 +17,17 @@ struct Packet{
     char data[DATA_SIZE]; //
 };
 
+/*** Client - Request list of files from server ***/
 void SendRequest1(int sockfd);
+/*** Server - Send list of files to server ***/
 void SendRequest2(int connectSockfd);
 
+/*** Client - Request and download a file from server ***/
 void SendRequest3(int sockfd);
+/*** Server - Send a file to the client ***/
 void SendRequest4(int connectSockfd, struct Packet firstPacket);
 
+/*** Client - Send a file to be saved on the server ***/
 void SendRequest5(int sockfd);
+/*** Server - Receive and save a file sent by the user ***/
 void SendRequest6(int connectSockfd, struct Packet firstPacket);

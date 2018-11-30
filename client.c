@@ -1,7 +1,10 @@
 /*
 * Name: AJ Anderhub
 * Title: Final Project Client
-* Description: TODO
+* Description: Client for multimedia server that allows the user to:
+*       * Request a list of files stored on the the server
+*       * Request to download a file that is stored on the the server
+*       * Send a file to be stored on the the server
 */
 #include "header.h"
 #include <stdio.h>
@@ -12,6 +15,8 @@
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
 
 #define SERVER_PORT 1719
 int main(int argc,char *argv[]){
@@ -22,6 +27,9 @@ int main(int argc,char *argv[]){
     struct hostent *host_info;
     int sock, count;
     char *server_name;
+
+    // Create a directory named files if not already there
+    mkdir("./Files", 0777);
 
     /*get server name from command line. if none, use'local host'*/
     server_name =(argc>1) ? argv[1] :"localhost";

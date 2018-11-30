@@ -1,7 +1,10 @@
 /*
 * Name: AJ Anderhub
 * Title: Final Project Server
-* Description: TODO
+* Description: A multimedia server that can, upon user request:
+*       * Send a list of files stored on the the server
+*       * Send a file that is stored on the the server to the user
+*       * Receive and store a file sent by the user
 */
 
 #include "header.h"
@@ -14,9 +17,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/stat.h>
+
 
 #define LISTEN_PORT 1719
-#define NUMCLIENTS 10
+#define NUMCLIENTS 20
 
 void * connectionTask(void *);
 void sort (char *[], int n);
@@ -28,6 +33,9 @@ int main(int argc,char *argv[]){
     struct sockaddr_in server,client;
     int listeningSocket;
     socklen_t client_len;
+
+    // Create a directory named files if not already there
+    mkdir("./Files", 0777);
 
     int connectionSocket[NUMCLIENTS];
     pthread_t thrID[NUMCLIENTS];
